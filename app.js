@@ -17,7 +17,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "/",
+        url: "/api",
       },
     ],
   },
