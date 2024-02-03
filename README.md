@@ -2,9 +2,15 @@
 - .env 파일에 어떤 환경변수가 추가되어야 하는지 작성합니다.
 - key=value 형태에서 key만 나열합니다. value는 비밀!
 
-- DB_URL
+- DATABASE_URL
 - JWT_SECRET
-- 그 밖의 사용한 환경변수를 나열해 주세요.
+- KAKAO_ID
+- KAKAO_REDIRECT_URI
+- KAKAO_LOGOUT_URI
+- REFRESH_SECRET
+- email_service
+- user
+- pass
 
 # API 명세서 URL
  스웨거 에디터 사용
