@@ -17,10 +17,18 @@ model Users {
   password  String   @map("password")
   Checkpass String   @map("Checkpass")
   permission Permission @default(User) @map("permission")
+  emailstatus emailStatus @map("emailstatus")
+  emailVerified Boolean  @default(false) @map("emailVerified")
+  verificationToken String? @map("verificationToken") 
   createdAt DateTime @default(now()) @map("createdAt")
   updatedAt DateTime @updatedAt @map("updatedAt")
   resume Resume[]
   @@map("Users")
+}
+
+enum emailStatus{
+  nono
+  yes
 }
 
 enum Permission {
