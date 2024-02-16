@@ -1,5 +1,5 @@
 import express from "express";
-import { prisma } from "../models/index.js";
+import { prisma } from "../index.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import authMiddleware from "../middlewares/auth.middlewares.js";
@@ -43,6 +43,7 @@ router.post("/ad/sign-up", async (req, res) => {
             Checkpass: hashedPassword,
             name,
             permission: "Admin",
+            emailstatus: "yes",
           },
         });
         return [user];
@@ -105,9 +106,6 @@ router.post("/sign-up", async (req, res, next) => {
       }
     );
     const token = Math.floor(Math.random() * 900000) + 100000; // 6자리 숫자 난수 생성
-
-    await sendVerificationEmail(email, token.toString()); // 난수 인증 코드를 이메일로 보냅니다.
-
     return res.status(201).json({
       message: "회원가입이 완료되었습니다. 이메일 인증 메일을 확인해주세요.",
     });
@@ -180,6 +178,12 @@ router.post("/sign-in", async (req, res) => {
   return res.status(200).json({ message: "로그인 성공" });
 });
 
+router.get("/sign-out", (req, res) => {
+  res.clearCookie("authorization");
+  res.clearCookie("refreshtoken");
+  return res.status(200).json({ message: "로그아웃 성공" });
+});
+
 router.post("/refresh", async (req, res, next) => {
   const { refreshToken } = req.cookies;
 
@@ -204,12 +208,6 @@ router.post("/refresh", async (req, res, next) => {
       .status(401)
       .json({ message: "리프레시 토큰이 유효하지 않습니다." });
   }
-});
-
-router.get("/sign-out", (req, res) => {
-  res.clearCookie("authorization");
-  res.clearCookie("refreshtoken");
-  return res.status(200).json({ message: "로그아웃 성공" });
 });
 
 router.get("/users", authMiddleware, async (req, res, next) => {
@@ -265,7 +263,13 @@ router.get("/oauth/callback", async (req, res) => {
   const users = await prisma.users.upsert({
     where: { email },
     update: { email, name },
-    create: { email, name, password: "default", Checkpass: "default" },
+    create: {
+      email,
+      name,
+      password: "default",
+      Checkpass: "default",
+      emailstatus: "yes",
+    },
   });
 
   const userJWT = jwt.sign({ userId: users.id }, process.env.JWT_SECRET);
@@ -278,8 +282,64 @@ router.get("/oauth/logout", async (req, res) => {
   const kakaoAuthUrl = `https://kauth.kakao.com/oauth/logout?client_id=${process.env.KAKAO_ID}&logout_redirect_uri=${process.env.KAKAO_LOGOUT_URI}`;
   res.redirect(kakaoAuthUrl);
 });
-router.get("/oauth/logout/success", (req, res) => {
-  res.send("로그아웃에 성공했습니다.");
+router.get("/oauth/logout/callback", (req, res) => {
+  return res.status(200).json({ message: "로그아웃 성공" });
+});
+
+router.get("/oauth/google", (req, res) => {
+  const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${process.env.GOOGLE_REDIRECT_URI}&response_type=code&scope=email%20profile`;
+  res.redirect(googleAuthUrl);
+});
+
+router.get("/oauth/google/callback", async (req, res) => {
+  const code = req.query.code;
+  const tokenRequest = await axios({
+    method: "POST",
+    url: "https://oauth2.googleapis.com/token",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    data: {
+      grant_type: "authorization_code",
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+      code,
+    },
+  });
+
+  const { access_token } = tokenRequest.data;
+  const profileRequest = await axios({
+    method: "GET",
+    url: "https://www.googleapis.com/oauth2/v3/userinfo",
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+    },
+  });
+
+  const { email, name } = profileRequest.data;
+
+  const users = await prisma.users.upsert({
+    where: { email },
+    update: { email, name },
+    create: {
+      email,
+      name,
+      password: "default",
+      Checkpass: "default",
+      emailstatus: "yes",
+    },
+  });
+
+  const userJWT = jwt.sign({ userId: users.id }, process.env.JWT_SECRET);
+  res.cookie("authorization", `Bearer ${userJWT}`);
+
+  return res.status(200).json({ message: "로그인 성공" });
+});
+
+router.get("/oauth/google/logout", (req, res) => {
+  res.clearCookie("authorization");
+  return res.status(200).json({ message: "로그아웃 성공" });
 });
 
 export default router;
